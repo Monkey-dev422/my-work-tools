@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>한전 뉴스 모니터링 대시보드</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --red-900: #7A0C1E;
+      --red-700: #B3122B;
+      --red-600: #C8102E;
+      --red-500: #E03A4F;
+      --red-100: #FBE3E6;
+      --red-50:  #FDF3F4;
+      --ink:     #1F2328;
+      --ink-2:   #4B525A;
+      --ink-3:   #7D848C;
+      --line:    #E7E3E4;
+      --bg:      #F6F4F4;
+      --card:    #FFFFFF;
+      --radius:  12px;
+      --shadow:  0 1px 2px rgba(31,35,40,.06), 0 2px 8px rgba(31,35,40,.04);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; word-break: keep-all;
+    }
+    button, input { font: inherit; }
+
+    /* ---------- 상단 바 ---------- */
+    .topbar {
+      background: linear-gradient(135deg, var(--red-900), var(--red-600));
+      color: #fff; padding: 18px 20px;
+    }
+    .topbar-inner {
+      max-width: 1200px; margin: 0 auto; display: flex; gap: 12px 20px;
+      align-items: center; justify-content: space-between; flex-wrap: wrap;
+    }
+    .brand h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+    .brand p { margin: 2px 0 0; font-size: 13px; opacity: .85; }
+    .top-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .updated { font-size: 13px; opacity: .9; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; border: 0; cursor: pointer;
+      border-radius: 8px; padding: 9px 16px; font-weight: 600; font-size: 14px;
+      transition: background .15s, opacity .15s;
+    }
+    .btn-light { background: #fff; color: var(--red-700); }
+    .btn-light:hover { background: var(--red-50); }
+    .btn-red { background: var(--red-600); color: #fff; }
+    .btn-red:hover { background: var(--red-700); }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn .spin { width: 14px; height: 14px; border-width: 2px; display: none; }
+    .btn.busy .spin { display: inline-block; }
+    .btn.busy .ico { display: none; }
+
+    /* ---------- 레이아웃 ---------- */
+    main { max-width: 1200px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 16px; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; }
+    .panel-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+    .panel-title h2 { margin: 0; font-size: 16px; font-weight: 700; }
+    .panel-title small { color: var(--ink-3); font-size: 13px; }
+
+    /* ---------- 키워드 칩 ---------- */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px;
+      border-radius: 999px; background: var(--red-50); border: 1px solid var(--red-100);
+      color: var(--red-700); font-weight: 600; font-size: 14px;
+    }
+    .chip.err { background: #FFF; border-color: var(--red-500); border-style: dashed; }
+    .chip .count { font-weight: 500; color: var(--ink-3); font-size: 12px; }
+    .chip button {
+      width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent;
+      color: var(--red-700); cursor: pointer; display: grid; place-items: center; font-size: 16px; line-height: 1;
+    }
+    .chip button:hover { background: var(--red-100); }
+    .add-form { display: flex; gap: 8px; margin-top: 12px; }
+    .input {
+      flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px;
+      background: #fff; color: var(--ink); outline: none;
+    }
+    .input:focus { border-color: var(--red-500); box-shadow: 0 0 0 3px rgba(224,58,79,.15); }
+    .hint { color: var(--ink-3); font-size: 12px; margin-top: 6px; }
+
+    /* ---------- 알림 ---------- */
+    .alert {
+      border-radius: var(--radius); padding: 12px 16px; border: 1px solid #F3B7BF;
+      background: #FFF5F6; color: var(--red-900); font-size: 14px;
+    }
+    .alert strong { display: block; margin-bottom: 4px; }
+    .alert ul { margin: 4px 0 0; padding-left: 18px; }
+    .alert li + li { margin-top: 4px; }
+    .alert.info { background: #F4F6F8; border-color: var(--line); color: var(--ink-2); }
+
+    /* ---------- 요약 숫자 ---------- */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+    .stat .label { color: var(--ink-3); font-size: 13px; }
+    .stat .value { font-size: 24px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .stat .value.red { color: var(--red-600); }
+
+    /* ---------- 차트 ---------- */
+    .chart-box { position: relative; width: 100%; }
+
+    /* ---------- 검색 + 카드 ---------- */
+    .search-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+    .search-wrap { position: relative; flex: 1; }
+    .search-wrap .input { width: 100%; padding-left: 36px; }
+    .search-wrap svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
+    .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .card {
+      border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fff;
+      display: flex; flex-direction: column; gap: 8px; transition: border-color .15s, box-shadow .15s;
+    }
+    .card:hover { border-color: #F0C3C9; box-shadow: 0 4px 14px rgba(179,18,43,.08); }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag { font-size: 12px; font-weight: 600; color: var(--red-700); background: var(--red-50); border-radius: 4px; padding: 2px 8px; }
+    .card h3 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.45; letter-spacing: -.01em; }
+    .card h3 a { color: var(--ink); text-decoration: none; }
+    .card h3 a:hover { color: var(--red-700); text-decoration: underline; }
+    .card p { margin: 0; color: var(--ink-2); font-size: 14px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .meta { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); flex-wrap: wrap; }
+    .meta a { color: var(--red-600); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .meta a:hover { text-decoration: underline; }
+    mark { background: #FFE08A; color: inherit; border-radius: 2px; padding: 0 1px; }
+    .empty { text-align: center; color: var(--ink-3); padding: 40px 12px; grid-column: 1 / -1; }
+    .more { display: flex; justify-content: center; margin-top: 14px; }
+
+    /* ---------- 로딩 ---------- */
+    .spin {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid var(--red-100); border-top-color: var(--red-600);
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading {
+      position: fixed; inset: 0; background: rgba(246,244,244,.72); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center; z-index: 50;
+    }
+    .loading.show { display: flex; }
+    .loading-box {
+      background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: 0 8px 30px rgba(0,0,0,.08); padding: 22px 28px; display: flex; align-items: center; gap: 14px;
+    }
+    .loading-box b { display: block; font-size: 15px; }
+    .loading-box span { color: var(--ink-3); font-size: 13px; }
+    .skeleton { height: 128px; border-radius: 10px; border: 1px solid var(--line);
+      background: linear-gradient(90deg, #f3f1f1 25%, #faf9f9 37%, #f3f1f1 63%); background-size: 400% 100%;
+      animation: shimmer 1.4s ease infinite; }
+    @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+    /* ---------- 모바일 ---------- */
+    @media (max-width: 760px) {
+      .topbar { padding: 14px 16px; }
+      .brand h1 { font-size: 18px; }
+      .top-actions { width: 100%; justify-content: space-between; }
+      main { padding: 12px 12px 40px; gap: 12px; }
+      .panel { padding: 14px; }
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .stat .value { font-size: 20px; }
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>한전 뉴스 모니터링 대시보드</h1>
+        <p>네이버 뉴스 · 키워드별 최신 20건 · 10분 캐시</p>
+      </div>
+      <div class="top-actions">
+        <span class="updated" id="updated">아직 불러오지 않았습니다</span>
+        <button class="btn btn-light" id="refreshBtn" type="button">
+          <span class="spin"></span>
+          <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          새로고침
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-title">
+        <h2>모니터링 키워드</h2>
+        <small id="kwCount"></small>
+      </div>
+      <div class="chips" id="chips"></div>
+      <form class="add-form" id="addForm" autocomplete="off">
+        <input class="input" id="kwInput" maxlength="30" placeholder="키워드 추가 (예: 송전망, 원전)">
+        <button class="btn btn-red" type="submit">추가</button>
+      </form>
+      <div class="hint">칩의 × 를 누르면 삭제됩니다. 키워드 목록은 이 대시보드를 쓰는 모든 사람에게 공유됩니다.</div>
+    </section>
+
+    <div id="alerts"></div>
+
+    <section class="stats">
+      <div class="stat"><div class="label">수집한 기사</div><div class="value" id="stTotal">-</div></div>
+      <div class="stat"><div class="label">중복 제거 후</div><div class="value" id="stUnique">-</div></div>
+      <div class="stat"><div class="label">현재 표시 중</div><div class="value red" id="stShown">-</div></div>
+      <div class="stat"><div class="label">오류 키워드</div><div class="value" id="stErr">-</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <h2>키워드별 기사 수</h2>
+        <small id="chartNote"></small>
+      </div>
+      <div class="chart-box" id="chartBox"><canvas id="chart" aria-label="키워드별 기사 수 막대 차트" role="img"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <h2>기사 목록</h2>
+        <small id="listNote"></small>
+      </div>
+      <div class="search-row">
+        <div class="search-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input class="input" id="search" type="search" placeholder="기사 안에서 검색 (예: 요금 인상)">
+        </div>
+      </div>
+      <div class="cards" id="cards"></div>
+      <div class="more" id="more"></div>
+    </section>
+  </main>
+
+  <div class="loading" id="loading" role="status" aria-live="polite">
+    <div class="loading-box">
+      <div class="spin"></div>
+      <div><b>뉴스를 불러오는 중…</b><span id="loadingText">잠시만 기다려 주세요</span></div>
+    </div>
+  </div>
+
+  <script>
+    const PAGE_SIZE = 40;
+    const state = {
+      keywords: [],
+      results: {},       // keyword -> { items, error, cached, fetchedAt }
+      filter: '',
+      pageLimit: PAGE_SIZE,
+      pending: 0,
+      chart: null,
+      sysError: ''
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    /* ---------------- 서버 호출 ---------------- */
+    function call(fn, ...args) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)[fn](...args);
+      });
+    }
+
+    function friendlyServerError(err) {
+      const m = String((err && err.message) || err || '');
+      if (/NetworkError|네트워크|Failed to fetch/i.test(m)) return '인터넷 연결이 끊겼거나 서버에 접속하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.';
+      if (/권한|authoriz|permission/i.test(m)) return '스크립트 권한이 승인되지 않았습니다. 편집기에서 checkSetup 함수를 실행해 권한을 승인한 뒤 다시 배포하세요.';
+      if (/Exceeded maximum execution time|시간을 초과/i.test(m)) return '서버 실행 시간이 초과되었습니다. 키워드 수를 줄이거나 잠시 후 다시 시도하세요.';
+      return '서버 실행 중 오류가 발생했습니다: ' + m.replace(/^Exception:\s*/, '');
+    }
+
+    /* ---------------- 로딩 표시 ---------------- */
+    function setLoading(on, text) {
+      state.pending += on ? 1 : -1;
+      if (state.pending < 0) state.pending = 0;
+      const busy = state.pending > 0;
+      $('loading').classList.toggle('show', busy);
+      $('refreshBtn').disabled = busy;
+      $('refreshBtn').classList.toggle('busy', busy);
+      if (on && text) $('loadingText').textContent = text;
+      if (busy && !Object.keys(state.results).length) {
+        $('cards').innerHTML = Array.from({ length: 4 }, () => '<div class="skeleton"></div>').join('');
+      }
+    }
+
+    /* ---------------- 데이터 가져오기 ---------------- */
+    async function refresh(list) {
+      const targets = list || state.keywords;
+      if (!targets.length) { render(); return; }
+      state.sysError = '';
+      setLoading(true, '키워드 ' + targets.length + '개 · 최신 기사 각 20건');
+      try {
+        const res = await call('getNews', targets);
+        res.results.forEach(r => { if (r) state.results[r.keyword] = r; });
+        $('updated').textContent = '마지막 갱신 ' + fmtTime(new Date());
+      } catch (err) {
+        state.sysError = friendlyServerError(err);
+      } finally {
+        setLoading(false);
+        render();
+      }
+    }
+
+    async function saveKeywords() {
+      try {
+        state.keywords = await call('saveKeywords', state.keywords);
+      } catch (err) {
+        state.sysError = '키워드를 저장하지 못했습니다. ' + friendlyServerError(err);
+        render();
+      }
+    }
+
+    /* ---------------- 키워드 추가/삭제 ---------------- */
+    $('addForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const kw = $('kwInput').value.trim().replace(/\s+/g, ' ');
+      if (!kw) return;
+      if (state.keywords.includes(kw)) { flash('이미 있는 키워드입니다: ' + kw); return; }
+      if (state.keywords.length >= 15) { flash('키워드는 최대 15개까지 등록할 수 있습니다.'); return; }
+      state.keywords.push(kw);
+      $('kwInput').value = '';
+      renderChips();
+      saveKeywords();
+      refresh([kw]);          // 새 키워드만 바로 가져오기
+    });
+
+    function removeKeyword(kw) {
+      state.keywords = state.keywords.filter(k => k !== kw);
+      delete state.results[kw];
+      saveKeywords();
+      render();
+    }
+
+    function flash(msg) {
+      state.sysError = msg;
+      render();
+      setTimeout(() => { if (state.sysError === msg) { state.sysError = ''; renderAlerts(); } }, 3500);
+    }
+
+    /* ---------------- 검색 ---------------- */
+    let searchTimer;
+    $('search').addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        state.filter = e.target.value;
+        state.pageLimit = PAGE_SIZE;
+        render();
+      }, 150);
+    });
+
+    function terms() {
+      return state.filter.toLowerCase().split(/\s+/).filter(Boolean);
+    }
+    function matches(item, t) {
+      if (!t.length) return true;
+      const hay = (item.title + ' ' + item.description).toLowerCase();
+      return t.every(w => hay.includes(w));
+    }
+
+    /* ---------------- 렌더링 ---------------- */
+    function render() {
+      renderChips();
+      renderAlerts();
+      const t = terms();
+
+      // 1) originallink 기준 중복 제거 (같은 기사가 여러 키워드에 걸리면 태그만 합침)
+      const byUrl = new Map();
+      let rawTotal = 0;
+      const perKeyword = {};
+      state.keywords.forEach(kw => {
+        const r = state.results[kw];
+        const seenInKw = new Set();
+        perKeyword[kw] = 0;
+        if (!r || !r.items) return;
+        r.items.forEach(it => {
+          rawTotal++;
+          const key = normUrl(it.originallink || it.link);
+          if (!key || seenInKw.has(key)) return;
+          seenInKw.add(key);
+          if (matches(it, t)) perKeyword[kw]++;
+          if (byUrl.has(key)) {
+            const a = byUrl.get(key);
+            if (!a.keywords.includes(kw)) a.keywords.push(kw);
+          } else {
+            byUrl.set(key, Object.assign({}, it, { keywords: [kw] }));
+          }
+        });
+      });
+
+      const unique = Array.from(byUrl.values());
+      const shown = unique.filter(it => matches(it, t))
+        .sort((a, b) => (b.pubDate || '').localeCompare(a.pubDate || ''));
+      const errCount = state.keywords.filter(kw => state.results[kw] && state.results[kw].error).length;
+      const hasData = Object.keys(state.results).length > 0;
+
+      $('stTotal').textContent = hasData ? rawTotal.toLocaleString() : '-';
+      $('stUnique').textContent = hasData ? unique.length.toLocaleString() : '-';
+      $('stShown').textContent = hasData ? shown.length.toLocaleString() : '-';
+      $('stErr').textContent = hasData ? errCount : '-';
+      $('stErr').classList.toggle('red', errCount > 0);
+
+      renderChart(perKeyword, t);
+      renderCards(shown, t, hasData);
+    }
+
+    function renderChips() {
+      $('kwCount').textContent = state.keywords.length + ' / 15개';
+      $('chips').innerHTML = state.keywords.length
+        ? state.keywords.map(kw => {
+            const r = state.results[kw];
+            const err = r && r.error;
+            const count = r ? (err ? '오류' : (r.items.length + '건' + (r.cached ? ' · 캐시' : ''))) : '';
+            return '<span class="chip' + (err ? ' err' : '') + '" title="' + esc(err || '') + '">' + esc(kw) +
+              (count ? ' <span class="count">' + esc(count) + '</span>' : '') +
+              '<button type="button" aria-label="' + esc(kw) + ' 삭제" data-kw="' + esc(kw) + '">×</button></span>';
+          }).join('')
+        : '<span class="hint" style="margin:0">키워드가 없습니다. 아래에서 추가하세요.</span>';
+      $('chips').querySelectorAll('button[data-kw]').forEach(b =>
+        b.addEventListener('click', () => removeKeyword(b.dataset.kw)));
+    }
+
+    function renderAlerts() {
+      const box = $('alerts');
+      const parts = [];
+      if (state.sysError) {
+        parts.push('<div class="alert"><strong>알림</strong>' + esc(state.sysError) + '</div>');
+      }
+      // 같은 원인은 한 줄로 묶어서 표시
+      const groups = new Map();
+      state.keywords.forEach(kw => {
+        const r = state.results[kw];
+        if (r && r.error) {
+          if (!groups.has(r.error)) groups.set(r.error, []);
+          groups.get(r.error).push(kw);
+        }
+      });
+      if (groups.size) {
+        const items = Array.from(groups.entries()).map(([msg, kws]) =>
+          '<li><b>' + esc(kws.join(', ')) + '</b> — ' + esc(msg) + '</li>').join('');
+        parts.push('<div class="alert"><strong>일부 키워드의 기사를 가져오지 못했습니다</strong><ul>' + items + '</ul></div>');
+      }
+      box.innerHTML = parts.join('');
+      box.style.display = parts.length ? '' : 'none';
+    }
+
+    function renderChart(perKeyword, t) {
+      const labels = state.keywords.slice();
+      const data = labels.map(kw => perKeyword[kw] || 0);
+      const colors = labels.map(kw => (state.results[kw] && state.results[kw].error) ? '#E7C3C8' : '#C8102E');
+      $('chartBox').style.height = Math.max(160, labels.length * 38 + 50) + 'px';
+      $('chartNote').textContent = t.length ? '검색어 "' + state.filter.trim() + '" 포함 기사 기준' : '키워드별 수집 건수 (최대 20)';
+
+      if (typeof Chart === 'undefined') {
+        $('chartBox').innerHTML = '<div class="hint">차트 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.</div>';
+        return;
+      }
+      if (!state.chart) {
+        state.chart = new Chart($('chart'), {
+          type: 'bar',
+          data: { labels, datasets: [{ label: '기사 수', data, backgroundColor: colors, borderRadius: 4, maxBarThickness: 26 }] },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 350 },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (c) => {
+                const r = state.results[c.label];
+                return r && r.error ? ' 오류: 불러오기 실패' : ' ' + c.parsed.x + '건';
+              } } }
+            },
+            scales: {
+              x: { beginAtZero: true, suggestedMax: 20, ticks: { precision: 0, color: '#7D848C' }, grid: { color: '#F0ECEC' } },
+              y: { ticks: { color: '#1F2328', font: { size: 13, weight: '600' } }, grid: { display: false } }
+            },
+            onClick: (evt, els) => {           // 막대를 누르면 그 키워드로 검색
+              if (!els.length) return;
+              const kw = state.chart.data.labels[els[0].index];
+              $('search').value = kw; state.filter = kw; state.pageLimit = PAGE_SIZE; render();
+            }
+          }
+        });
+      } else {
+        const ds = state.chart.data.datasets[0];
+        state.chart.data.labels = labels;
+        ds.data = data;
+        ds.backgroundColor = colors;
+        state.chart.resize();
+        state.chart.update();
+      }
+    }
+
+    function renderCards(list, t, hasData) {
+      const cards = $('cards');
+      const more = $('more');
+      more.innerHTML = '';
+      if (!state.keywords.length) {
+        cards.innerHTML = '<div class="empty">키워드를 추가한 뒤 새로고침을 눌러 주세요.</div>';
+        $('listNote').textContent = '';
+        return;
+      }
+      if (!hasData) {
+        if (!state.pending) cards.innerHTML = '<div class="empty">상단의 <b>새로고침</b>을 누르면 최신 기사를 가져옵니다.</div>';
+        $('listNote').textContent = '';
+        return;
+      }
+      $('listNote').textContent = '최신순 · 같은 원문 링크는 한 번만 표시';
+      if (!list.length) {
+        cards.innerHTML = '<div class="empty">' + (t.length ? '"' + esc(state.filter.trim()) + '"이(가) 들어간 기사가 없습니다.' : '가져온 기사가 없습니다.') + '</div>';
+        return;
+      }
+      const page = list.slice(0, state.pageLimit);
+      cards.innerHTML = page.map(it => {
+        const url = safeUrl(it.originallink || it.link);
+        const d = it.pubDate ? new Date(it.pubDate) : null;
+        return '<article class="card">' +
+          '<div class="tags">' + it.keywords.map(k => '<span class="tag">#' + esc(k) + '</span>').join('') + '</div>' +
+          '<h3><a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + highlight(it.title, t) + '</a></h3>' +
+          '<p>' + highlight(it.description, t) + '</p>' +
+          '<div class="meta"><span>' + esc(host(url)) + (d ? ' · ' + esc(fmtDate(d)) + ' (' + esc(ago(d)) + ')' : '') + '</span>' +
+          '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">원문 보기 ↗</a></div>' +
+          '</article>';
+      }).join('');
+      if (list.length > page.length) {
+        more.innerHTML = '<button class="btn btn-light" style="border:1px solid var(--line)" type="button" id="moreBtn">더 보기 (' + (list.length - page.length) + '건 남음)</button>';
+        $('moreBtn').addEventListener('click', () => { state.pageLimit += PAGE_SIZE; render(); });
+      }
+    }
+
+    /* ---------------- 유틸 ---------------- */
+    function highlight(text, t) {
+      text = String(text || '');
+      if (!t.length) return esc(text);
+      const lower = text.toLowerCase();
+      const on = new Array(text.length).fill(false);
+      t.forEach(w => {
+        let i = lower.indexOf(w);
+        while (i !== -1) { for (let j = i; j < i + w.length; j++) on[j] = true; i = lower.indexOf(w, i + w.length); }
+      });
+      let out = '', open = false;
+      for (let i = 0; i < text.length; i++) {
+        if (on[i] && !open) { out += '<mark>'; open = true; }
+        if (!on[i] && open) { out += '</mark>'; open = false; }
+        out += esc(text[i]);
+      }
+      return open ? out + '</mark>' : out;
+    }
+    function normUrl(u) { return String(u || '').trim().replace(/^http:\/\//i, 'https://').replace(/\/+$/, ''); }
+    function safeUrl(u) { return /^https?:\/\//i.test(u || '') ? u : '#'; }
+    function host(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
+    const pad = (n) => String(n).padStart(2, '0');
+    function fmtDate(d) { return d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function fmtTime(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function ago(d) {
+      const m = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (m < 1) return '방금 전';
+      if (m < 60) return m + '분 전';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + '시간 전';
+      return Math.floor(h / 24) + '일 전';
+    }
+
+    /* ---------------- 시작 ---------------- */
+    $('refreshBtn').addEventListener('click', () => refresh());
+    (async function init() {
+      setLoading(true, '키워드 목록을 불러오는 중');
+      try {
+        state.keywords = await call('getKeywords');
+      } catch (err) {
+        state.keywords = ['한전', '전기요금', '정전', '전기차 충전', '재생에너지'];
+        state.sysError = friendlyServerError(err);
+      } finally {
+        setLoading(false);
+      }
+      render();
+      refresh();          // 처음 열면 자동으로 한 번 불러오기
+    })();
+  </script>
+</body>
+</html>
